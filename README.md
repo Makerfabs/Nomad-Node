@@ -1,12 +1,12 @@
-# nRF52840+LR1121
+# Nomad Node
 
 ## 1.Introduction
 
 
 
-Product Link: [nRF52840+LR1121]()
+Product Link: [Nomad Node]()
 
-Wiki Link:  [nRF52840+LR1121](https://wiki.makerfabs.com/MaTouch%20Lite%20ESP32_S3%20SPI%20IPS%20with%20Touch%202.4%20ST7789.html)
+Wiki Link:  [Nomad Node](https://wiki.makerfabs.com/Nomad_Node.html)
 
 ## 2.Feature
 
@@ -95,8 +95,9 @@ Once another device is connected in the same way, they can send data to each oth
 
 ![APP4.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/d51394b1b74b4fb388185207200e4f0b.jpg)
 
+### 4.2 [Tracker](https://wiki.makerfabs.com/Nomad_Terminal.html#42-tracker)
 
-### 4.2 QMA6100P Step Counter
+### 4.3 QMA6100P Step Counter
 
 This example demonstrates a simple software-based step counter using the QMA6100P 3-axis accelerometer. The algorithm calculates the acceleration magnitude from the X, Y, and Z axes and detects walking steps using a fixed-baseline peak detection method.
 
@@ -116,7 +117,7 @@ Use Type-C USB cable to connect the board and PC, and select the development boa
 
 
 
-### 4.3 GPS Demo
+### 4.4 GPS Demo
 
 This example demonstrates how to obtain real-time GPS positioning information using the ATGM336H GPS module.
 
@@ -140,7 +141,7 @@ The first time you obtain this information, you will need to wait approximately 
 
 
 
-### 4.4 Get device battery level
+### 4.5 Get device battery level
 
 This device is equipped with a CW2015 module, allowing users to monitor the battery voltage and charge level.
 
