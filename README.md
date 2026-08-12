@@ -19,8 +19,69 @@ Wiki Link:  [Nomad Node](https://wiki.makerfabs.com/Nomad_Node.html)
 - WS2812, Buzzer, User button(One-Key Power On/Off Support).
 - Charger: Yes
 
+## 3. Usage
 
-## 3.Arduino IDE
+This product comes preloaded with factory firmware. Long-press the power button to turn on the device.
+
+This example demonstrates a BLE ↔ LoRa bridge based on the Nomad Node.
+
+- The phone connects to the device through BLE.
+
+- Text data sent from the phone is forwarded through LoRa.
+
+- LoRa packets received from another device are forwarded back to the phone through BLE.
+
+![ble_lora.png](https://wikiadmin.makerfabs.com/api/uploads/images/d732f5a4f86449dea786b204dba1c480.png)
+
+- Download the “Serial Bluetooth Terminal” app on your phone.
+
+![app.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/ac6ed058ada245149db344b89c8acc16.jpg)
+
+Open the app, click Devices ---> Bluetooth ---> SCAN.
+
+![APP1.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/d07547f0c9d14720a83fc979675ceb19.jpg)
+
+![APP2.png](https://wikiadmin.makerfabs.com/api/uploads/images/565c084b68f84a63b85f0032bb948a7b.png)
+
+Once the device is found, tap it to connect it to your phone.
+
+![APP3.png](https://wikiadmin.makerfabs.com/api/uploads/images/13ae3b7d830c4b2ab63fd9f964a61d24.png)
+
+Once another device is connected in the same way, they can send data to each other.
+
+- Text in blue indicates data sent;
+
+-  Text in blue indicates data received.
+
+![APP4.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/d51394b1b74b4fb388185207200e4f0b.jpg)
+
+
+## 4. Work with Nomad Terminal
+
+Before flashing the code, you need to open the case first.
+
+Pry open the outer cover.
+
+![1.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/7364f416a07d4052abb3b25fb4b10cd7.jpg)
+
+Use a screwdriver to unscrew the three screws.
+
+![2.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/2da4f8b2630c45e6ac7cc464110467bc.jpg)
+
+Remove the inner casing.
+
+![3.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/78a03a7edb244bf482f28a98a288d667.jpg)
+
+Connect to the USB port for flashing.
+
+![4.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/4efe80c3c5814221861a8ac6fa645dfa.jpg)
+
+For information on software configuration and code flashing, please see [https://wiki.makerfabs.com/Nomad_Terminal.html#4-work-with-nomad-node](https://wiki.makerfabs.com/Nomad_Terminal.html#4-work-with-nomad-node)
+
+
+## 5. Demo
+
+### 5.1 Arduino IDE
 
 - Install the Arduino IDE V2.3.6.
 
@@ -48,56 +109,8 @@ https://adafruit.github.io/arduino-board-index/package_adafruit_index.json
 
 ![TinyGPSPlus.png](https://wikiadmin.makerfabs.com/api/uploads/images/95424ed273d3426ea3b4b045a52f0eca.png)
 
-## 4. Usage
 
-### 4.1 BLE to LoRa Bridge
-
-This example demonstrates a BLE ↔ LoRa bridge based on the nRF52840 and LR1121.
-
-- The phone connects to the device through BLE.
-
-- Text data sent from the phone is forwarded through LoRa.
-
-- LoRa packets received from another device are forwarded back to the phone through BLE.
-
-![ble_lora.png](https://wikiadmin.makerfabs.com/api/uploads/images/d732f5a4f86449dea786b204dba1c480.png)
-
-
-- Open the [BLE_LoRa](https://github.com/Makerfabs/nRF52840-LR1121/tree/main/Example/BLE_lora) by Arduino.
-
-Use Type-C USB cable to connect the board and PC, and select the development board "Nordic nRF52840 DK" and the port.
-
-- Click the Upload button in the Arduino IDE and wait a few times while the code compiles and uploads to your board.
-
-- Take out another new board and repeat the above steps to program it (If you want to distinguish between two devices, you can set them to different Bluetooth names).
-
-![BLE name.png](https://wikiadmin.makerfabs.com/api/uploads/images/e0c050b5a3a849219960665003d0ca13.png)
-
-- Download the “Serial Bluetooth Terminal” app on your phone.
-
-![app.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/ac6ed058ada245149db344b89c8acc16.jpg)
-
-Open the app, click Devices ---> Bluetooth ---> SCAN.
-
-![APP1.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/d07547f0c9d14720a83fc979675ceb19.jpg)
-
-![APP2.png](https://wikiadmin.makerfabs.com/api/uploads/images/565c084b68f84a63b85f0032bb948a7b.png)
-
-Once the device is found, tap it to connect it to your phone.
-
-![APP3.png](https://wikiadmin.makerfabs.com/api/uploads/images/13ae3b7d830c4b2ab63fd9f964a61d24.png)
-
-Once another device is connected in the same way, they can send data to each other.
-
-- Text in blue indicates data sent;
-
--  Text in blue indicates data received.
-
-![APP4.jpg](https://wikiadmin.makerfabs.com/api/uploads/images/d51394b1b74b4fb388185207200e4f0b.jpg)
-
-### 4.2 [Tracker](https://wiki.makerfabs.com/Nomad_Terminal.html#42-tracker)
-
-### 4.3 QMA6100P Step Counter
+### 5.2 QMA6100P Step Counter
 
 This example demonstrates a simple software-based step counter using the QMA6100P 3-axis accelerometer. The algorithm calculates the acceleration magnitude from the X, Y, and Z axes and detects walking steps using a fixed-baseline peak detection method.
 
@@ -117,7 +130,7 @@ Use Type-C USB cable to connect the board and PC, and select the development boa
 
 
 
-### 4.4 GPS Demo
+### 5.3 GPS Demo
 
 This example demonstrates how to obtain real-time GPS positioning information using the ATGM336H GPS module.
 
@@ -141,7 +154,7 @@ The first time you obtain this information, you will need to wait approximately 
 
 
 
-### 4.5 Get device battery level
+### 5.4 Get device battery level
 
 This device is equipped with a CW2015 module, allowing users to monitor the battery voltage and charge level.
 
@@ -158,7 +171,7 @@ Open the Serial to check the battery level. Since the battery can be charged via
 
 
 
-## 5. FAQ
+## 6. FAQ
 You can list your questions here or contact techsupport@makerfabs.com for technology support. Detailed descriptions of your question will help to solve your question.
 
 Q1: During flashing, the message “Target is not in DFU mode. Ground the DFU pin and RESET, then release both to enter DFU mode” appears. Flashing was not successful.
