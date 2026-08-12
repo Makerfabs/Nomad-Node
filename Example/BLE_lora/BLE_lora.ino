@@ -13,6 +13,12 @@ Download the “Serial Bluetooth Terminal” app on your phone to communicate wi
 
 #include <bluefruit.h>
 #include <RadioLib.h>
+#include <FastLED.h>
+
+#define NUM_LEDS 1
+#define LED_PIN 25
+
+CRGB leds[NUM_LEDS];
 
 BLEUart bleuart;
 
@@ -83,6 +89,10 @@ void setup() {
   tone(BUZZER_PIN, 3000, 200);
 
   delay(300);
+
+  FastLED.addLeds<WS2812, LED_PIN, RGB>(leds, NUM_LEDS);
+  leds[0] = CRGB::Green;
+  FastLED.show();
 
   Bluefruit.begin();
 
