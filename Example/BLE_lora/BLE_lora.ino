@@ -32,6 +32,8 @@ BLEUart bleuart;
 #define OUTPUT_POWER       22
 #define PREAMBLE_LEN       8
 #define TCXOVOLTAGE        1.8
+#define LORA_MIN_APP_PAYLOAD 8
+#define LORA_PAYLOAD_PREFIX "BL:"
 
 #define LR1121_CS    44
 #define LR1121_IRQ   14
@@ -50,6 +52,10 @@ LR1121 radio = new Module(
 #define V_RFSW        NRF_GPIO_PIN_MAP(0, 13)
 
 #define BUZZER_PIN    22
+#define KEY_PIN       5
+#define POWER_OFF_HOLD_MS 2000UL
+
+// ====================== RF Switch ======================
 
 static const uint32_t rfswitch_dio_pins[] = {
   RADIOLIB_LR11X0_DIO5,
@@ -70,6 +76,10 @@ static const Module::RfSwitchMode_t rfswitch_table[] = {
 
 volatile bool radioBusy = false;
 String bleRxBuffer = "";
+unsigned long keyPressStartTime = 0;
+bool lastKeyState = HIGH;
+bool keyPressActive = false;
+bool powerOffTriggered = false;
 
 void setup() {
 
@@ -85,6 +95,8 @@ void setup() {
   digitalWrite(V_RFSW, HIGH);
 
   pinMode(BUZZER_PIN, OUTPUT);
+
+  pinMode(KEY_PIN, INPUT_PULLUP);
 
   tone(BUZZER_PIN, 3000, 200);
 
@@ -152,9 +164,94 @@ void setup() {
 
 void loop() {
 
+  Handle_Power_Button();
+
   BLE_To_LoRa();
 
   LoRa_To_BLE();
+}
+
+String encodeLoRaPayload(const String &raw) {
+  String payload = String(LORA_PAYLOAD_PREFIX) + raw;
+
+  while (payload.length() < LORA_MIN_APP_PAYLOAD) {
+    payload += ' ';
+  }
+
+  return payload;
+}
+
+String decodeLoRaPayload(const String &raw) {
+  if (!raw.startsWith(LORA_PAYLOAD_PREFIX)) {
+    return raw;
+  }
+
+  String result = raw.substring(3);
+
+  while (result.length() > 0 && result[result.length() - 1] == ' ') {
+    result.remove(result.length() - 1);
+  }
+
+  return result;
+}
+
+void restartLoRaReceive() {
+  int state = radio.standby();
+
+  if (state != RADIOLIB_ERR_NONE) {
+    Serial.print("[LoRa] Standby failed: ");
+    Serial.println(state);
+  }
+
+  state = radio.clearIrqFlags(RADIOLIB_LR11X0_IRQ_ALL);
+
+  if (state != RADIOLIB_ERR_NONE) {
+    Serial.print("[LoRa] Clear IRQ failed: ");
+    Serial.println(state);
+  }
+
+  state = radio.startReceive();
+
+  if (state != RADIOLIB_ERR_NONE) {
+    Serial.print("[LoRa] RX restart failed: ");
+    Serial.println(state);
+  }
+}
+
+void Handle_Power_Button() {
+
+  bool currentKeyState = digitalRead(KEY_PIN);
+
+  if (lastKeyState == HIGH && currentKeyState == LOW) {
+
+    keyPressStartTime = millis();
+    keyPressActive = true;
+    powerOffTriggered = false;
+  }
+
+  if (currentKeyState == HIGH) {
+
+    keyPressActive = false;
+    powerOffTriggered = false;
+  }
+
+  if (currentKeyState == LOW && keyPressActive && !powerOffTriggered && millis() - keyPressStartTime >= POWER_OFF_HOLD_MS) {
+
+    powerOffTriggered = true;
+    Serial.println("[POWER] Long press detected, shutting down...");
+    bleuart.println("[POWER] Shutting down...");
+    tone(BUZZER_PIN, 3000, 200);
+    delay(250);
+    radio.standby();
+    digitalWrite(pw_on_off, LOW);
+
+    while (true) {
+
+      delay(1000);
+    }
+  }
+
+  lastKeyState = currentKeyState;
 }
 
 // ========================================================
@@ -190,10 +287,15 @@ void BLE_To_LoRa() {
 
   radioBusy = true;
 
-  // stop receive
-  radio.standby();
+  int clearState = radio.clearIrqFlags(RADIOLIB_LR11X0_IRQ_ALL);
 
-  int state = radio.transmit(msg);
+  if (clearState != RADIOLIB_ERR_NONE) {
+    Serial.print("[LoRa TX] Clear IRQ failed: ");
+    Serial.println(clearState);
+  }
+
+  String airPayload = encodeLoRaPayload(msg);
+  int state = radio.transmit(airPayload);
 
   if (state == RADIOLIB_ERR_NONE) {
 
@@ -205,10 +307,7 @@ void BLE_To_LoRa() {
     Serial.println(state);
   }
 
-  delay(20);
-
-  // VERY IMPORTANT
-  radio.startReceive();
+  restartLoRaReceive();
 
   radioBusy = false;
 }
@@ -222,21 +321,44 @@ void LoRa_To_BLE() {
     return;
   }
 
-  if (radio.getIrqStatus() & RADIOLIB_LR11X0_IRQ_RX_DONE) {
+  uint32_t irq = radio.getIrqStatus();
+  uint32_t terminalIrq = RADIOLIB_LR11X0_IRQ_RX_DONE | RADIOLIB_LR11X0_IRQ_CRC_ERR | RADIOLIB_LR11X0_IRQ_TIMEOUT | RADIOLIB_LR11X0_IRQ_HEADER_ERR;  // 仅处理结束当前接收的事件。
 
-    radioBusy = true;
+  if ((irq & terminalIrq) == 0) {
+    return;
+  }
 
+  radioBusy = true;
+
+  if (irq & RADIOLIB_LR11X0_IRQ_RX_DONE) {
     String str;
 
     int state = radio.readData(str);
 
     if (state == RADIOLIB_ERR_NONE) {
 
+      str = decodeLoRaPayload(str);
+
+      float rssi = radio.getRSSI();
+      float snr = radio.getSNR();
+
       Serial.print("[LoRa RX] ");
       Serial.println(str);
 
+      Serial.print("[LoRa RX] RSSI: ");
+      Serial.print(rssi);
+      Serial.println(" dBm");
+
+      Serial.print("[LoRa RX] SNR: ");
+      Serial.print(snr);
+      Serial.println(" dB");
+
       bleuart.print(str);
-      bleuart.print("\r\n");
+      bleuart.print(" | RSSI: ");
+      bleuart.print(rssi);
+      bleuart.print(" dBm | SNR: ");
+      bleuart.print(snr);
+      bleuart.print(" dB\r\n");
 
       Serial.println("[BLE TX] Forwarded");
 
@@ -246,12 +368,13 @@ void LoRa_To_BLE() {
       Serial.println(state);
     }
 
-    delay(10);
-
-    radio.startReceive();
-
-    radioBusy = false;
+  } else {
+    Serial.print("[LoRa RX EVENT] 0x");
+    Serial.println(irq, HEX);
   }
+
+  restartLoRaReceive();
+  radioBusy = false;
 }
 
 void connect_callback(uint16_t conn_handle) {
