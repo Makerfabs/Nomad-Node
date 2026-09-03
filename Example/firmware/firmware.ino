@@ -49,6 +49,10 @@ static const uint32_t REPORT_INTERVAL_MS = 60000;
 static const uint32_t LONG_PRESS_MS = 2000UL;
 static const uint32_t DOUBLE_CLICK_WINDOW_MS = 450UL;
 static const uint32_t BUTTON_DEBOUNCE_MS = 30UL;
+static const uint32_t LED_FAST_ON_MS = 500UL;
+static const uint32_t LED_FAST_OFF_MS = 500UL;
+static const uint32_t LED_SLOW_ON_MS = 800UL;
+static const uint32_t LED_SLOW_OFF_MS = 1000UL;
 static const uint8_t CW2015_ADDRESS = 0x62;
 
 static const char MODE_FILE_PATH[] = "/tracker_mode.bin";
@@ -71,6 +75,14 @@ static const size_t PACKET_CRC_OFFSET = 28U;
 enum DeviceMode : uint8_t {
   MODE_RECEIVER = 0,
   MODE_TRANSMITTER = 1
+};
+
+enum LedPattern : uint8_t {
+  LED_PATTERN_OFF = 0,
+  LED_PATTERN_RED_SOLID,
+  LED_PATTERN_RED_BLINK,
+  LED_PATTERN_BLUE_BLINK,
+  LED_PATTERN_GREEN_BLINK
 };
 
 CRGB statusLeds[STATUS_LED_COUNT];
@@ -112,6 +124,10 @@ uint32_t firstClickReleaseMs = 0;
 char deviceId[17] = {0};
 uint64_t deviceIdValue = 0;
 uint32_t reportSequence = 0;
+LedPattern activeLedPattern = LED_PATTERN_OFF;
+bool ledIsOn = false;
+uint32_t ledStateChangedMs = 0;
+bool ledShutdown = false;
 
 void setupAdvertising();
 void connectCallback(uint16_t connectionHandle);
@@ -123,6 +139,9 @@ void registerShortClick(uint32_t nowMs);
 void switchMode();
 void applyCurrentMode(bool sendImmediately);
 void setStatusLed(CRGB color);
+void updateStatusLed();
+void resetStatusLed();
+bool hasValidGpsFix();
 void beep(uint16_t durationMs);
 void shutdownDevice();
 void loadSavedMode();
@@ -200,6 +219,7 @@ void setup() {
 void loop() {
   processGpsInput();
   processButton();
+  updateStatusLed();
   if (currentMode == MODE_TRANSMITTER) {
     processTransmitterMode();
   } else {
@@ -267,13 +287,13 @@ void switchMode() {
 
 void applyCurrentMode(bool sendImmediately) {
   if (currentMode == MODE_RECEIVER) {
-    setStatusLed(CRGB::Blue);
+    resetStatusLed();
     immediateReportPending = false;
     stopLoRaReceiver();
     setupAdvertising();
     Serial.println("[MODE] Receiver, blue LED, waiting for BLE connection");
   } else {
-    setStatusLed(CRGB::Red);
+    resetStatusLed();
     Bluefruit.Advertising.restartOnDisconnect(false);
     Bluefruit.Advertising.stop();
     uint16_t connectionHandles[4] = {0, 0, 0, 0};
@@ -289,8 +309,80 @@ void applyCurrentMode(bool sendImmediately) {
 }
 
 void setStatusLed(CRGB color) {
+  if (statusLeds[0].r == color.r && statusLeds[0].g == color.g && statusLeds[0].b == color.b) {
+    return;
+  }
   statusLeds[0] = color;
   FastLED.show();
+}
+
+bool hasValidGpsFix() {
+  return gps.location.isValid() && gps.location.age() < 30000UL;
+}
+
+void resetStatusLed() {
+  activeLedPattern = LED_PATTERN_OFF;
+  ledIsOn = false;
+  ledStateChangedMs = millis();
+}
+
+void updateStatusLed() {
+  if (ledShutdown) {
+    return;
+  }
+  LedPattern desiredPattern;
+  if (currentMode == MODE_TRANSMITTER) {
+    desiredPattern = hasValidGpsFix() ? LED_PATTERN_RED_BLINK : LED_PATTERN_RED_SOLID;
+  } else {
+    desiredPattern = Bluefruit.connected() ? LED_PATTERN_GREEN_BLINK : LED_PATTERN_BLUE_BLINK;
+  }
+
+  uint32_t nowMs = millis();
+  bool patternChanged = false;
+  if (desiredPattern != activeLedPattern) {
+    activeLedPattern = desiredPattern;
+    ledIsOn = true;
+    ledStateChangedMs = nowMs;
+    patternChanged = true;
+  }
+
+  if (activeLedPattern == LED_PATTERN_RED_SOLID) {
+    if (patternChanged || !ledIsOn) {
+      ledIsOn = true;
+      setStatusLed(CRGB::Red);
+    }
+    return;
+  }
+
+  if (activeLedPattern == LED_PATTERN_OFF) {
+    if (ledIsOn) {
+      ledIsOn = false;
+      setStatusLed(CRGB::Black);
+    }
+    return;
+  }
+
+  CRGB blinkColor = CRGB::Black;
+  uint32_t onDurationMs = LED_FAST_ON_MS;
+  uint32_t offDurationMs = LED_FAST_OFF_MS;
+  if (activeLedPattern == LED_PATTERN_RED_BLINK) {
+    blinkColor = CRGB::Red;
+    onDurationMs = LED_SLOW_ON_MS;
+    offDurationMs = LED_SLOW_OFF_MS;
+  } else if (activeLedPattern == LED_PATTERN_GREEN_BLINK) {
+    blinkColor = CRGB::Green;
+    onDurationMs = LED_SLOW_ON_MS;
+    offDurationMs = LED_SLOW_OFF_MS;
+  } else if (activeLedPattern == LED_PATTERN_BLUE_BLINK) {
+    blinkColor = CRGB::Blue;
+  }
+
+  uint32_t phaseDurationMs = ledIsOn ? onDurationMs : offDurationMs;
+  if ((uint32_t)(nowMs - ledStateChangedMs) >= phaseDurationMs) {
+    ledIsOn = !ledIsOn;
+    ledStateChangedMs = nowMs;
+  }
+  setStatusLed(ledIsOn ? blinkColor : CRGB::Black);
 }
 
 void beep(uint16_t durationMs) {
@@ -300,6 +392,9 @@ void beep(uint16_t durationMs) {
 void shutdownDevice() {
   Serial.println("[POWER] Long press detected, shutting down");
   beep(200);
+  ledShutdown = true;
+  activeLedPattern = LED_PATTERN_OFF;
+  ledIsOn = false;
   setStatusLed(CRGB::Black);
   Bluefruit.Advertising.stop();
   if (radioReady) {
@@ -469,7 +564,7 @@ void buildDevicePacket(uint8_t *packet) {
   writeUint64BigEndian(packet + PACKET_ID_OFFSET, deviceIdValue);
   writeUint32BigEndian(packet + PACKET_SEQUENCE_OFFSET, reportSequence++);
   writeUint32BigEndian(packet + PACKET_TIME_OFFSET, buildGpsUnixTime());
-  bool gpsFixValid = gps.location.isValid() && gps.location.age() < 30000UL;
+  bool gpsFixValid = hasValidGpsFix();
   int32_t latitudeMicrodegrees = gpsFixValid ? static_cast<int32_t>(gps.location.lat() * 1000000.0) : 0;
   int32_t longitudeMicrodegrees = gpsFixValid ? static_cast<int32_t>(gps.location.lng() * 1000000.0) : 0;
   writeUint32BigEndian(packet + PACKET_LATITUDE_OFFSET, static_cast<uint32_t>(latitudeMicrodegrees));
@@ -642,8 +737,8 @@ void connectCallback(uint16_t connectionHandle) {
   Serial.print("[BLE] Connected: ");
   Serial.println(peerName);
   if (currentMode == MODE_RECEIVER) {
+    resetStatusLed();
     restartLoRaReceiver();
-    setStatusLed(receiverListening ? CRGB::Green : CRGB::Blue);
   }
 }
 
@@ -653,7 +748,7 @@ void disconnectCallback(uint16_t connectionHandle, uint8_t reason) {
   Serial.println(reason, HEX);
   if (currentMode == MODE_RECEIVER && !Bluefruit.connected()) {
     stopLoRaReceiver();
-    setStatusLed(CRGB::Blue);
+    resetStatusLed();
   }
 }
 
